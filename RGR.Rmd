@@ -1,13 +1,7 @@
 library(caret)
+library(dplyr)
+
 data(GermanCredit, package = "caret")
-(u <- unique(GermanCredit$ResidenceDuration))
-
-# Доля уникальных значений:
-length(u)/nrow(GermanCredit)
-
-(t <- sort(table(GermanCredit$ResidenceDuration), decreasing = TRUE))
-
-t[1]/t[2]
 
 # Создадим копию данных без столбца с откликом Class:
 gcred = GermanCredit[, -10]
@@ -15,38 +9,12 @@ gcred = GermanCredit[, -10]
 # обладающих околонулевой дисперсией:
 (nz = nearZeroVar(gcred))
 
-print("Имена этих переменных:")
-
-names(gcred)[nz]
-
 # Удаляем предикторы с околонулевой дисперсией:
 gcred.clean = gcred[, -nz]
-
-# Наибольшие значения треугольной матрицы
-top.mat <- function(X, level = 0.45, N = 12, values = TRUE) {
-    X.nam <- row.names(X)
-    X.tri <- as.vector(lower.tri(X))
-    X.rep.g <- rep(X.nam, length(X.nam))[X.tri]
-    X.rep.e <- rep(X.nam, each = length(X.nam))[X.tri]
-    X.vec <- as.vector(X)[X.tri]
-    X.df <- data.frame(Var1 = X.rep.g, Var2 = X.rep.e, Value = X.vec)
-    {if (values)
-    {X.df <- X.df[abs(X.df$Value) >= level, ]
-    X.df <- X.df[order(-abs(X.df$Value)), ]}
-        else
-        {X.df <- X.df[order(-abs(X.df$Value)), ]
-        X.df <- X.df[1:N, ]}}
-    row.names(X.df) <- seq(1, along = X.df$Value)
-    return(X.df)
-}
-
-top.mat(cor(gcred.clean))
 
 # Функция findCorrelation() возвращает вектор 
 # номеров переменных с высокой корреляцией:
 (highCor = findCorrelation(cor(gcred.clean), cutoff = 0.75))
-
-print("Имена этих переменных:"); names( gcred.clean)[highCor]
 
 # Удаляем эти переменные:
 gcred.clean =  gcred.clean[, -highCor]
@@ -55,4 +23,18 @@ gcred.clean =  gcred.clean[, -highCor]
 
 # Удаляем эти переменные:
 gcred.clean =  gcred.clean[, -linCombo$remove]
-dim(gcred.clean)
+
+weights <- c(Age = 1, Job = 0.8, OwnsCar = 0.6, YearsAtCurrentJob = 0.9)
+
+scoring <- apply(gcred.clean, 1, function(row) sum(row * weights))
+
+gcred.clean$Scoring <- scoring
+
+threshold <- 1000
+gcred.clean$Prediction <- ifelse(gcred.clean$Scoring >= threshold, "Good", "Bad")
+
+result <- data.frame(Scoring = scoring, Prediction = ifelse(scoring >= threshold, "Good", "Bad"))
+rownames(result) <- rownames(gcred_clean)
+print(result)
+
+write.csv(result, file = "scoring_results.csv", row.names = TRUE)
